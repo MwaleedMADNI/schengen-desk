@@ -734,31 +734,33 @@ if(mfSubmitBtn){
       const resultsBox = document.getElementById('matcherResults');
       if(resultsBox && resultsBox.scrollIntoView) resultsBox.scrollIntoView({behavior:'smooth', block:'start'});
 
-      // Optional: send full profile as a lead via the same Formspree endpoint, only if user opted in
+      // Optional: send full profile as a lead via our own API, only if user opted in
       const consent = document.getElementById('mfConsent').checked;
       const consentStatus = document.getElementById('mfConsentStatus');
       if(consent){
-        const endpoint = contactForm ? contactForm.getAttribute('action') : null;
-        if(endpoint && !endpoint.includes('YOUR_FORM_ID')){
-          const fd = new FormData();
-          fd.append('_subject', 'New student profile — Schengen Desk matcher');
-          fd.append('name', profile.name || '(not given)');
-          fd.append('degree', profile.degree);
-          fd.append('field_of_study', profile.field || '(not given)');
-          fd.append('grade', profile.grade ?? '(not given)');
-          fd.append('english_level', profile.englishLevel);
-          fd.append('preferred_intake', profile.intake);
-          fd.append('budget_pkr', profile.budgetEntered ? profile.budgetPKR : '(not given)');
-          fd.append('bank_statement_amount_pkr', profile.financeEntered ? profile.financePKR : '(not given)');
-          fd.append('can_arrange_blocked_account', profile.blockedCapable);
-          fd.append('top_matches', results.slice(0,5).map(r=>r.d.c).join(', '));
-          fetch(endpoint, { method:'POST', headers:{'Accept':'application/json'}, body: fd })
-            .then(()=>{ consentStatus.textContent = '✓ Your profile was sent to the site owner.'; consentStatus.style.color = '#8FD9B6'; })
-            .catch(()=>{ consentStatus.textContent = 'Could not send profile (network issue) — your recommendations above are still valid.'; consentStatus.style.color = '#F0A19A'; });
-        } else {
-          consentStatus.textContent = 'Site owner hasn\'t connected the form endpoint yet — recommendations above still work.';
-          consentStatus.style.color = '#F0C56A';
-        }
+        const profileName = profile.name || '(not given)';
+        const profileMsg  = [
+          `Degree: ${profile.degree}`,
+          `Field: ${profile.field || '(not given)'}`,
+          `Grade: ${profile.grade ?? '(not given)'}`,
+          `English: ${profile.englishLevel}`,
+          `Intake: ${profile.intake}`,
+          `Budget PKR: ${profile.budgetEntered ? profile.budgetPKR.toLocaleString() : '(not given)'}`,
+          `Bank statement PKR: ${profile.financeEntered ? profile.financePKR.toLocaleString() : '(not given)'}`,
+          `Blocked account: ${profile.blockedCapable}`,
+          `Top matches: ${results.slice(0,5).map(r=>r.d.c).join(', ')}`,
+        ].join('\n');
+        // We need an email — use a placeholder if not provided
+        const profileEmail = document.getElementById('cfEmail') && document.getElementById('cfEmail').value.trim()
+          ? document.getElementById('cfEmail').value.trim()
+          : 'no-email-provided@matcher.schengendesk';
+        fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: profileName, email: profileEmail, message: `[Matcher Profile]\n${profileMsg}` }),
+        })
+          .then(()=>{ consentStatus.textContent = '✓ Your profile was sent to the site owner.'; consentStatus.style.color = '#8FD9B6'; })
+          .catch(()=>{ consentStatus.textContent = 'Could not send profile (network issue) — your recommendations above are still valid.'; consentStatus.style.color = '#F0A19A'; });
       }
     } catch(err){
       const box = document.getElementById('matcherResults');
@@ -766,6 +768,59 @@ if(mfSubmitBtn){
         box.innerHTML = `<div class="mr-empty">Something went wrong computing recommendations: ${err.message}. Please check your inputs and try again.</div>`;
       }
       console.error('Matcher error:', err);
+    }
+  });
+}
+
+// ── Contact Form Handler ────────────────────────────────────────────────────
+const contactForm = document.getElementById('contactForm');
+if (contactForm) {
+  contactForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const nameVal    = document.getElementById('cfName').value.trim();
+    const emailVal   = document.getElementById('cfEmail').value.trim();
+    const messageVal = document.getElementById('cfMessage').value.trim();
+    const submitBtn  = document.getElementById('cfSubmit');
+    const statusEl   = document.getElementById('cfStatus');
+
+    // Basic client-side validation
+    if (!nameVal || !emailVal || !messageVal) {
+      statusEl.textContent = '⚠️ Please fill in all fields.';
+      statusEl.style.color = '#F0A19A';
+      return;
+    }
+
+    // Loading state
+    submitBtn.disabled   = true;
+    submitBtn.textContent = 'Sending…';
+    statusEl.textContent  = '';
+    statusEl.style.color  = '#9BA3B8';
+
+    try {
+      const res = await fetch('/api/contact', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name: nameVal, email: emailVal, message: messageVal }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        statusEl.textContent = '✅ Message sent! Check your inbox — we\'ll get back to you within 24–48 hours.';
+        statusEl.style.color = '#8FD9B6';
+        contactForm.reset();
+      } else {
+        statusEl.textContent = '❌ ' + (data.error || 'Something went wrong. Please try again.');
+        statusEl.style.color = '#F0A19A';
+      }
+    } catch (err) {
+      statusEl.textContent = '❌ Network error — please check your connection and try again.';
+      statusEl.style.color = '#F0A19A';
+      console.error('[Contact form] Error:', err);
+    } finally {
+      submitBtn.disabled    = false;
+      submitBtn.textContent = 'Send Message';
     }
   });
 }

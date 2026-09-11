@@ -249,7 +249,7 @@ export const bodyHtml = `
         <h2 class="contact-title">Have a question about<br>your Master's plan?</h2>
         <p class="contact-sub">Send a message — country you're targeting, your background, or anything else. I'll get back to you directly.</p>
       </div>
-      <form class="contact-form" id="contactForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+      <form class="contact-form" id="contactForm" novalidate>
         <div class="cf-row">
           <label for="cfName">Name</label>
           <input type="text" id="cfName" name="name" required placeholder="Your full name">
