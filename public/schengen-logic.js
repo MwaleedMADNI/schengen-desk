@@ -529,44 +529,50 @@ document.getElementById('rateInput').addEventListener('input', (e)=>{
 renderGrid();
 updateStats();
 
-/* ---------------- Contact form (declared early so matcher can reuse its endpoint) ---------------- */
+/* ---------------- Contact form → /api/contact -------------------- */
 const contactForm = document.getElementById('contactForm');
 if(contactForm){
-  contactForm.addEventListener('submit', async (e)=>{
+  contactForm.addEventListener('submit', async function(e){
     e.preventDefault();
-    const btn = document.getElementById('cfSubmit');
-    const status = document.getElementById('cfStatus');
-    const endpoint = contactForm.getAttribute('action');
+    const nameVal    = (document.getElementById('cfName').value || '').trim();
+    const emailVal   = (document.getElementById('cfEmail').value || '').trim();
+    const messageVal = (document.getElementById('cfMessage').value || '').trim();
+    const btn        = document.getElementById('cfSubmit');
+    const status     = document.getElementById('cfStatus');
 
-    if(endpoint.includes('YOUR_FORM_ID')){
-      status.className = 'cf-status err';
-      status.textContent = 'Form not connected yet — replace YOUR_FORM_ID in the code with your real Formspree endpoint.';
+    // Basic client-side validation
+    if(!nameVal || !emailVal || !messageVal){
+      status.textContent = '⚠️ Please fill in all fields.';
+      status.style.color = '#F0A19A';
       return;
     }
 
-    btn.disabled = true;
-    btn.textContent = 'Sending…';
+    // Loading state
+    btn.disabled      = true;
+    btn.textContent   = 'Sending…';
     status.textContent = '';
 
     try{
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json' },
-        body: new FormData(contactForm)
+      const res  = await fetch('/api/contact', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name: nameVal, email: emailVal, message: messageVal }),
       });
-      if(res.ok){
-        status.className = 'cf-status ok';
-        status.textContent = '✓ Message sent — thank you! I will get back to you soon.';
+      const data = await res.json();
+      if(res.ok && data.success){
+        status.textContent = '✅ Message sent! Check your inbox — we\'ll get back to you within 24–48 hours.';
+        status.style.color = '#8FD9B6';
         contactForm.reset();
       } else {
-        status.className = 'cf-status err';
-        status.textContent = 'Something went wrong — please try again or email directly.';
+        status.textContent = '❌ ' + (data.error || 'Something went wrong. Please try again.');
+        status.style.color = '#F0A19A';
       }
     } catch(err){
-      status.className = 'cf-status err';
-      status.textContent = 'Network error — please check your connection and try again.';
+      status.textContent = '❌ Network error — please check your connection and try again.';
+      status.style.color = '#F0A19A';
+      console.error('[Contact form]', err);
     } finally {
-      btn.disabled = false;
+      btn.disabled    = false;
       btn.textContent = 'Send Message';
     }
   });
@@ -768,59 +774,6 @@ if(mfSubmitBtn){
         box.innerHTML = `<div class="mr-empty">Something went wrong computing recommendations: ${err.message}. Please check your inputs and try again.</div>`;
       }
       console.error('Matcher error:', err);
-    }
-  });
-}
-
-// ── Contact Form Handler ────────────────────────────────────────────────────
-const contactForm = document.getElementById('contactForm');
-if (contactForm) {
-  contactForm.addEventListener('submit', async function (e) {
-    e.preventDefault();
-
-    const nameVal    = document.getElementById('cfName').value.trim();
-    const emailVal   = document.getElementById('cfEmail').value.trim();
-    const messageVal = document.getElementById('cfMessage').value.trim();
-    const submitBtn  = document.getElementById('cfSubmit');
-    const statusEl   = document.getElementById('cfStatus');
-
-    // Basic client-side validation
-    if (!nameVal || !emailVal || !messageVal) {
-      statusEl.textContent = '⚠️ Please fill in all fields.';
-      statusEl.style.color = '#F0A19A';
-      return;
-    }
-
-    // Loading state
-    submitBtn.disabled   = true;
-    submitBtn.textContent = 'Sending…';
-    statusEl.textContent  = '';
-    statusEl.style.color  = '#9BA3B8';
-
-    try {
-      const res = await fetch('/api/contact', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name: nameVal, email: emailVal, message: messageVal }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        statusEl.textContent = '✅ Message sent! Check your inbox — we\'ll get back to you within 24–48 hours.';
-        statusEl.style.color = '#8FD9B6';
-        contactForm.reset();
-      } else {
-        statusEl.textContent = '❌ ' + (data.error || 'Something went wrong. Please try again.');
-        statusEl.style.color = '#F0A19A';
-      }
-    } catch (err) {
-      statusEl.textContent = '❌ Network error — please check your connection and try again.';
-      statusEl.style.color = '#F0A19A';
-      console.error('[Contact form] Error:', err);
-    } finally {
-      submitBtn.disabled    = false;
-      submitBtn.textContent = 'Send Message';
     }
   });
 }
